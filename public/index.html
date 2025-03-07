@@ -5,61 +5,181 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Stock Management System</title>
-    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
-</head>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+        }
 
-<body>
-    <div id="app">
-        <h1>Stock Management System</h1>
-        <input v-model="newItem.name" placeholder="Item Name">
-        <input v-model="newItem.quantity" type="number" placeholder="Quantity">
-        <button @click="addItem">Add Item</button>
-        <ul>
-            <li v-for="item in inventory" :key="item.id">
-                {{ item.name }} - {{ item.quantity }}
-            </li>
-        </ul>
-    </div>
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+
+        input[type="text"],
+        input[type="number"] {
+            width: 150px;
+            padding: 10px;
+            margin: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+
+        th,
+        td {
+            border: 1px solid #ccc;
+            padding: 10px;
+            text-align: left;
+        }
+
+        th {
+            background-color: #f0f0f0;
+        }
+    </style>
+    <script src="/socket.io/socket.io.js"></script>
     <script>
-        new Vue({
-            el: '#app',
-            data: {
-                inventory: [],
-                newItem: {
-                    name: '',
-                    quantity: 0
-                }
-            },
-            mounted() {
-                this.fetchInventory();
-            },
-            methods: {
-                fetchInventory() {
-                    fetch('/api/inventory')
-                       .then(response => response.json())
-                       .then(data => {
-                            this.inventory = data;
-                        });
-                },
-                addItem() {
-                    fetch('/api/inventory', {
+        const socket = io();
+        const inventoryTable = document.getElementById('inventory-table');
+        const itemCodeInput = document.getElementById('item-code-input');
+        const nameInput = document.getElementById('name-input');
+        const typeInput = document.getElementById('type-input');
+        const quantityInput = document.getElementById('quantity-input');
+        const addButton = document.getElementById('add-button');
+
+        // Get inventory information
+        async function fetchInventory() {
+            try {
+                const response = await fetch('/api/inventory');
+                const inventory = await response.json();
+                inventoryTable.innerHTML = `
+                    <tr>
+                        <th>Item Code</th>
+                        <th>Item Name</th>
+                        <th>Type</th>
+                        <th>Quantity</th>
+                    </tr>
+                `;
+                inventory.forEach(item => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${item.itemCode}</td>
+                        <td>${item.name}</td>
+                        <td>${item.type}</td>
+                        <td>${item.quantity}</td>
+                    `;
+                    inventoryTable.appendChild(row);
+                });
+            } catch (error) {
+                console.error(error);
+            }
+        }
+
+        // Listen for inventory information update events
+        socket.on('inventoryUpdated', () => {
+            // When an update event is received, re - fetch inventory information
+            fetchInventory();
+        });
+
+        // Add inventory information
+        addButton.addEventListener('click', async () => {
+            const itemCode = itemCodeInput.value.trim();
+            const name = nameInput.value.trim();
+            const type = typeInput.value.trim();
+            const quantity = parseInt(quantityInput.value);
+
+            if (!itemCode || !name || !type) {
+                alert('Please enter item code, name, and type.');
+                return;
+            }
+            if (isNaN(quantity) || quantity < 0) {
+                alert('Please enter a valid quantity.');
+                return;
+            }
+            try {
+                const response = await fetch('/api/inventory', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ itemCode, name, type, quantity })
+                });
+                const data = await response.json();
+                console.log(data.message);
+                itemCodeInput.value = '';
+                nameInput.value = '';
+                typeInput.value = '';
+                quantityInput.value = '';
+                // Re - fetch inventory after successful addition
+                fetchInventory(); 
+            } catch (error) {
+                console.error(error);
+            }
+        });
+
+        // Export inventory information to Excel
+        const exportButton = document.createElement('button');
+        exportButton.textContent = 'Export to Excel';
+        exportButton.addEventListener('click', async () => {
+            window.location.href = '/api/inventory/export';
+        });
+        document.body.appendChild(exportButton);
+
+        // Import Excel file to inventory information
+        const importInput = document.createElement('input');
+        importInput.type = 'file';
+        importInput.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const formData = new FormData();
+                formData.append('file', file);
+                try {
+                    const response = await fetch('/api/inventory/import', {
                         method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify(this.newItem)
-                    })
-                       .then(() => {
-                            this.fetchInventory();
-                            this.newItem = {
-                                name: '',
-                                quantity: 0
-                            };
-                        });
+                        body: formData
+                    });
+                    const data = await response.json();
+                    console.log(data.message);
+                } catch (error) {
+                    console.error(error);
                 }
             }
         });
+        document.body.appendChild(importInput);
+
+        // Fetch inventory information when the page loads
+        window.addEventListener('load', fetchInventory);
     </script>
+</head>
+
+<body>
+    <h1>Stock Management System</h1>
+    <input type="text" id="item-code-input" placeholder="Item Code">
+    <input type="text" id="name-input" placeholder="Item Name">
+    <input type="text" id="type-input" placeholder="Type">
+    <input type="number" id="quantity-input" placeholder="Quantity">
+    <button id="add-button">Add Item</button>
+    <table id="inventory-table"></table>
 </body>
 
 </html>
