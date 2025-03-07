@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Stock Management System</title>
+    <script src="https://cdn.jsdelivr.net/npm/vue@2.6.14/dist/vue.js"></script>
+</head>
+
+<body>
+    <div id="app">
+        <h1>Stock Management System</h1>
+        <input v-model="newItem.name" placeholder="Item Name">
+        <input v-model="newItem.quantity" type="number" placeholder="Quantity">
+        <button @click="addItem">Add Item</button>
+        <ul>
+            <li v-for="item in inventory" :key="item.id">
+                {{ item.name }} - {{ item.quantity }}
+            </li>
+        </ul>
+    </div>
+    <script>
+        new Vue({
+            el: '#app',
+            data: {
+                inventory: [],
+                newItem: {
+                    name: '',
+                    quantity: 0
+                }
+            },
+            mounted() {
+                this.fetchInventory();
+            },
+            methods: {
+                fetchInventory() {
+                    fetch('/api/inventory')
+                       .then(response => response.json())
+                       .then(data => {
+                            this.inventory = data;
+                        });
+                },
+                addItem() {
+                    fetch('/api/inventory', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(this.newItem)
+                    })
+                       .then(() => {
+                            this.fetchInventory();
+                            this.newItem = {
+                                name: '',
+                                quantity: 0
+                            };
+                        });
+                }
+            }
+        });
+    </script>
+</body>
+
+</html>
